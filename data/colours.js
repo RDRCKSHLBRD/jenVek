@@ -511,5 +511,5 @@ const organizedColorsData = {
     { name: "Unicorn", hex: "#EADDCA" },
     { name: "Parchment", hex: "#E5D8C7" },
     { name: "Raw Milk", hex: "#E5D4B1" }
-  ],
+  ]
 };

@@ -1,5 +1,5 @@
 // ====================== SVG Generator by jenVek v2 =========================
-// Refactored script with enhanced controls, patterns, and features.
+// Refactored script - MODIFIED TO LOAD COLORS FROM colours.js
 
 // ====================== Global State ======================
 const state = {
@@ -17,13 +17,11 @@ const state = {
     recursionCount: 0,
     maxAllowedRecursion: 8, // Safety limit
     currentPalette: [],
-    allColors: {}, // Loaded from colours.json
+    allColors: {}, // Populated from colours.js global variable
     currentOptions: {},
     currentLayer: 0, // For multi-layer generation
     viewportWidth: 800,
     viewportHeight: 600,
-    // Seed for PRNG (if implementing a dedicated one)
-    // seed: Date.now(),
 };
 
 // ====================== Constants ======================
@@ -35,7 +33,14 @@ const dom = {}; // Object to hold cached DOM elements
 
 function cacheDOMElements() {
     dom.svg = document.getElementById('svg-canvas');
-    dom.defs = dom.svg.querySelector('defs');
+    // Ensure defs exists or create it if SVG might be empty initially
+    let defs = dom.svg.querySelector('defs');
+    if (!defs) {
+        defs = document.createElementNS(SVG_NS, 'defs');
+        dom.svg.appendChild(defs);
+    }
+    dom.defs = defs;
+
     dom.patternType = document.getElementById('pattern-type');
     dom.complexity = document.getElementById('complexity');
     dom.density = document.getElementById('density');
@@ -95,15 +100,14 @@ function cacheDOMElements() {
 
 // ====================== Utility Functions ======================
 
-// Use crypto for better randomness if available
-const randomSource = window.crypto || window.msCrypto; // Basic fallback
+const randomSource = window.crypto || window.msCrypto;
 function secureRandom() {
     if (randomSource && randomSource.getRandomValues) {
         const buffer = new Uint32Array(1);
         randomSource.getRandomValues(buffer);
-        return buffer[0] / 0xFFFFFFFF; // Normalize to 0-1
+        return buffer[0] / 0xFFFFFFFF;
     }
-    return Math.random(); // Fallback
+    return Math.random();
 }
 
 function random(min, max) {
@@ -118,20 +122,6 @@ function randomChoice(array) {
     if (!array || array.length === 0) return null;
     return array[Math.floor(secureRandom() * array.length)];
 }
-
-// --- PRNG (Optional - More advanced seeding) ---
-// Example using a simple Linear Congruential Generator (LCG)
-// function createPRNG(seed) {
-//     let state = seed % 2147483647;
-//     if (state <= 0) state += 2147483646;
-//     return () => {
-//         state = (state * 16807) % 2147483647;
-//         return (state - 1) / 2147483646; // Normalize to 0-1
-//     };
-// }
-// let currentPRNG = createPRNG(Date.now()); // Initialize
-// Usage: random = currentPRNG(); instead of Math.random()
-
 
 function isPrime(num) {
     num = Math.abs(Math.floor(num));
@@ -164,7 +154,10 @@ function goldenRatioPoint(index, totalPoints, radius) {
 function createSVGElement(tag, attrs = {}, parent = null) {
     const elem = document.createElementNS(SVG_NS, tag);
     for (const [key, value] of Object.entries(attrs)) {
-        elem.setAttribute(key, value);
+        // Ensure value is not null/undefined before setting attribute
+        if (value !== null && value !== undefined) {
+             elem.setAttribute(key, value);
+        }
     }
     if (parent) {
         parent.appendChild(elem);
@@ -172,9 +165,8 @@ function createSVGElement(tag, attrs = {}, parent = null) {
     return elem;
 }
 
-// Generate a unique ID for SVG elements (gradients, patterns)
 function generateUniqueId(prefix = 'svg-elem') {
-    return `${prefix}-${Date.now()}-${randomInt(1000, 9999)}`;
+    return `<span class="math-inline">\{prefix\}\-</span>{Date.now()}-${randomInt(1000, 9999)}`;
 }
 
 function formatNumber(num) {
@@ -182,66 +174,37 @@ function formatNumber(num) {
 }
 
 function getTimeSeedValue() {
-    // Normalize current time of day (0-1)
     const now = new Date();
-    const secondsInDay = 24 * 60 * 60;
+    const secondsInDay = 86400; // 24 * 60 * 60
     const currentSeconds = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000;
     return currentSeconds / secondsInDay;
 }
 
-// --- Debounce/Throttle (Optional - For performance on resize/mousemove) ---
-// function debounce(func, wait) {
-//   let timeout;
-//   return function executedFunction(...args) {
-//     const later = () => {
-//       clearTimeout(timeout);
-//       func(...args);
-//     };
-//     clearTimeout(timeout);
-//     timeout = setTimeout(later, wait);
-//   };
-// }
-
 
 // ====================== Color Management ======================
 
-async function loadColors() {
-    try {
-        const response = await fetch('./data/colours.json');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        state.allColors = await response.json();
-        populateColorSelectors();
-        console.log("Colors loaded successfully:", Object.keys(state.allColors).length, "categories");
-    } catch (error) {
-        console.error("Could not load colours.json:", error);
-        // Use a fallback basic palette if loading fails
-        state.allColors = {
-            fallback_blues: [
-                { name: "Default Blue 1", hex: "#264651" },
-                { name: "Default Blue 2", hex: "#0E5360" },
-                { name: "Default Blue 3", hex: "#0297A1" },
-                { name: "Default Blue 4", hex: "#93bedb" },
-            ]
-        };
-        populateColorSelectors(); // Populate with fallback
-    }
-}
+// REMOVED: async function loadColors() { ... }
 
 function populateColorSelectors() {
+    // Ensure state.allColors is populated (should be by global organizedColorsData)
+    if (!state.allColors || Object.keys(state.allColors).length === 0) {
+        console.error("Cannot populate selectors: state.allColors is empty!");
+        return; // Exit if color data isn't available
+    }
+
     dom.colorCategory.innerHTML = ''; // Clear existing options
     for (const category in state.allColors) {
         const option = document.createElement('option');
         option.value = category;
-        option.textContent = category.charAt(0).toUpperCase() + category.slice(1); // Capitalize
+        // Basic capitalization for display
+        option.textContent = category.charAt(0).toUpperCase() + category.slice(1).replace(/([A-Z])/g, ' $1').trim();
         dom.colorCategory.appendChild(option);
     }
     // Add a "Random Category" option
-     const randomCatOption = document.createElement('option');
-     randomCatOption.value = 'random_category';
-     randomCatOption.textContent = 'Random Category';
-     dom.colorCategory.appendChild(randomCatOption);
+    const randomCatOption = document.createElement('option');
+    randomCatOption.value = 'random_category';
+    randomCatOption.textContent = 'Random Category';
+    dom.colorCategory.appendChild(randomCatOption);
 
 
     // Trigger update for the palette dropdown based on the first category
@@ -249,7 +212,7 @@ function populateColorSelectors() {
     // Add listener for category changes
     dom.colorCategory.addEventListener('change', updatePaletteDropdown);
     // Add listener for palette changes (to update preview)
-     dom.colorPalette.addEventListener('change', updatePalettePreview);
+    dom.colorPalette.addEventListener('change', updatePalettePreview);
 }
 
 function updatePaletteDropdown() {
@@ -262,31 +225,33 @@ function updatePaletteDropdown() {
         randomOption.value = 'random_palette';
         randomOption.textContent = 'Random Palette';
         dom.colorPalette.appendChild(randomOption);
-    } else if (state.allColors[selectedCategory]) {
+    } else if (state.allColors && state.allColors[selectedCategory]) { // Check if state.allColors exists
         const palettes = state.allColors[selectedCategory];
-        // Check if the category contains palette objects or just hex strings/objects
-        if (Array.isArray(palettes) && palettes.length > 0 && typeof palettes[0] === 'object' && palettes[0].name && palettes[0].hex) {
-             // If it's an array of {name, hex} objects, treat the whole category as one palette
+        // This structure assumes each category key holds an array of {name, hex} objects
+        if (Array.isArray(palettes)) {
+             // Treat the whole category as one selectable palette
              const option = document.createElement('option');
              option.value = selectedCategory; // Use category name as value
-             option.textContent = selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1);
+             option.textContent = selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1).replace(/([A-Z])/g, ' $1').trim();
              dom.colorPalette.appendChild(option);
+
+              // Add a "Random Palette from Category" option
+             const randomInCatOption = document.createElement('option');
+             randomInCatOption.value = 'random_in_category';
+             randomInCatOption.textContent = 'Random Palette (from this Category)';
+             dom.colorPalette.appendChild(randomInCatOption);
         } else {
-             // Assume it's an object containing multiple named palettes (or handle other structures)
-             // This part needs adjustment based on the actual structure of colours.json if it's nested deeper
-             console.warn("Color category structure not fully handled yet for:", selectedCategory);
-             // Add a default option for now
-             const defaultOption = document.createElement('option');
-             defaultOption.value = 'default';
-             defaultOption.textContent = 'Default';
-             dom.colorPalette.appendChild(defaultOption);
+             console.warn("Color category structure might be unexpected for:", selectedCategory);
         }
-         // Add a "Random Palette from Category" option
-        const randomInCatOption = document.createElement('option');
-        randomInCatOption.value = 'random_in_category';
-        randomInCatOption.textContent = 'Random Palette (from Category)';
-        dom.colorPalette.appendChild(randomInCatOption);
+    } else {
+         console.warn("Selected category not found in color data:", selectedCategory);
+         // Provide a default/fallback option in the palette dropdown
+         const fallbackOption = document.createElement('option');
+         fallbackOption.value = 'fallback';
+         fallbackOption.textContent = 'Fallback';
+         dom.colorPalette.appendChild(fallbackOption);
     }
+
 
     // Trigger preview update
     updatePalettePreview();
@@ -298,25 +263,44 @@ function getColorPalette() {
     const paletteName = dom.colorPalette.value;
     let selectedPaletteHex = [];
 
+     // Ensure state.allColors is available
+     if (!state.allColors || Object.keys(state.allColors).length === 0) {
+         console.error("Color data (state.allColors) not available for getColorPalette.");
+         return ['#FF0000', '#00FF00', '#0000FF']; // Basic fallback
+     }
+
+
     if (paletteName === 'random_palette') {
-        const randomCategory = randomChoice(Object.keys(state.allColors));
-        selectedPaletteHex = (state.allColors[randomCategory] || []).map(c => c.hex);
+        const availableCategories = Object.keys(state.allColors);
+        if (availableCategories.length > 0) {
+            const randomCategory = randomChoice(availableCategories);
+            // Ensure the chosen category actually has colors
+            if (Array.isArray(state.allColors[randomCategory])) {
+                 selectedPaletteHex = state.allColors[randomCategory].map(c => c.hex).filter(Boolean); // Filter out potential undefined hex values
+            }
+        }
     } else if (paletteName === 'random_in_category' && category !== 'random_category') {
-         selectedPaletteHex = (state.allColors[category] || []).map(c => c.hex);
-         // Shuffle or select a random subset if desired
-         selectedPaletteHex.sort(() => 0.5 - secureRandom()); // Simple shuffle
-         selectedPaletteHex = selectedPaletteHex.slice(0, randomInt(5, 10)); // Random size 5-10
-    } else if (state.allColors[category]) {
-        selectedPaletteHex = (state.allColors[category] || []).map(c => c.hex);
-    } else {
-        // Fallback
+         if (Array.isArray(state.allColors[category])) {
+              selectedPaletteHex = state.allColors[category].map(c => c.hex).filter(Boolean);
+              // Shuffle or select a random subset if desired
+              selectedPaletteHex.sort(() => 0.5 - secureRandom()); // Simple shuffle
+              selectedPaletteHex = selectedPaletteHex.slice(0, randomInt(5, Math.min(10, selectedPaletteHex.length))); // Random size 5-10, ensure slice index valid
+         }
+    } else if (state.allColors[category] && Array.isArray(state.allColors[category])) {
+        selectedPaletteHex = state.allColors[category].map(c => c.hex).filter(Boolean);
+    } else if (paletteName === 'fallback') {
+         selectedPaletteHex = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF'];
+    }
+     else {
+        // Fallback if category/palette combination is somehow invalid
         selectedPaletteHex = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF'];
-        console.warn("Could not find selected palette, using fallback.");
+        console.warn("Could not find selected palette, using fallback default.");
     }
 
-     if (selectedPaletteHex.length === 0) {
-         // Ensure we always return *something*
+     if (!Array.isArray(selectedPaletteHex) || selectedPaletteHex.length === 0) {
+         // Final safety net: Ensure we always return *something* valid
          selectedPaletteHex = ['#333333', '#666666', '#999999', '#CCCCCC'];
+         console.warn("Palette resulted in empty array, using safety fallback.");
      }
 
     state.currentPalette = selectedPaletteHex; // Store the currently used palette hex values
@@ -324,30 +308,48 @@ function getColorPalette() {
 }
 
 function updatePalettePreview() {
+    // Ensure dom.palettePreview exists
+    if (!dom.palettePreview) return;
+
     const palette = getColorPalette(); // Get the hex values
     dom.palettePreview.innerHTML = ''; // Clear previous
-    palette.forEach(hex => {
-        const colorBox = document.createElement('div');
-        colorBox.classList.add('color-box');
-        colorBox.style.backgroundColor = hex;
-        colorBox.title = hex; // Show hex on hover
-        dom.palettePreview.appendChild(colorBox);
-    });
+    if (palette && Array.isArray(palette)) {
+         palette.forEach(hex => {
+              if (hex) { // Ensure hex is valid
+                  const colorBox = document.createElement('div');
+                  colorBox.classList.add('color-box');
+                  colorBox.style.backgroundColor = hex;
+                  colorBox.title = hex; // Show hex on hover
+                  dom.palettePreview.appendChild(colorBox);
+              }
+         });
+    } else {
+         console.warn("Cannot update preview, palette is invalid:", palette);
+    }
 }
 
 function getRandomFill(palette, options) {
+    if (!palette || palette.length === 0) {
+        palette = ['#555']; // Basic fallback if palette is empty
+    }
     if (options.fillType === 'none') return 'none';
 
     const chance = secureRandom();
 
+    // Ensure dom.defs exists for gradients/patterns
+    if (!dom.defs && (options.fillType === 'gradient' || options.fillType === 'pattern')) {
+         console.warn("SVG <defs> element not found, cannot create gradient/pattern.");
+         return randomChoice(palette) || '#888888'; // Fallback to solid
+    }
+
     if (options.fillType === 'gradient' && chance < 0.3) {
         return createGradientFill(palette);
     }
-    if (options.fillType === 'pattern' && chance > 0.3 && chance < 0.6) {
+    if (options.fillType === 'pattern' && chance >= 0.3 && chance < 0.6) { // Adjust probability range
         return createPatternFill(palette);
     }
     // Default to solid color
-    return randomChoice(palette) || 'grey'; // Fallback color
+    return randomChoice(palette) || '#888888'; // Fallback color
 }
 
 function createGradientFill(palette) {
@@ -365,8 +367,8 @@ function createGradientFill(palette) {
         gradient = createSVGElement('radialGradient', {
             id: gradientId,
             cx: `${randomInt(0, 100)}%`, cy: `${randomInt(0, 100)}%`,
-            r: `${randomInt(50, 150)}%`, // Allow larger radius
-            fx: `${randomInt(0, 100)}%`, fy: `${randomInt(0, 100)}%` // Focal point
+            r: `${randomInt(50, 150)}%`,
+            fx: `${randomInt(0, 100)}%`, fy: `${randomInt(0, 100)}%`
         });
     }
 
@@ -375,78 +377,77 @@ function createGradientFill(palette) {
         createSVGElement('stop', {
             offset: `${Math.floor((i / (numStops - 1)) * 100)}%`,
             'stop-color': randomChoice(palette) || 'grey',
-            'stop-opacity': random(0.7, 1.0) // Slightly less transparency variation
+            'stop-opacity': random(0.7, 1.0)
         }, gradient);
     }
 
-    dom.defs.appendChild(gradient);
+    dom.defs.appendChild(gradient); // Add to cached defs
     return `url(#${gradientId})`;
 }
 
 function createPatternFill(palette) {
     const patternId = generateUniqueId('pattern');
-    const size = randomInt(8, 20); // Variable pattern size
+    const size = randomInt(8, 20);
     const pattern = createSVGElement('pattern', {
         id: patternId,
         width: size,
         height: size,
         patternUnits: 'userSpaceOnUse',
-        patternTransform: `rotate(${randomInt(0, 90)}) scale(${random(0.5, 1.5)})` // Add scale
+        patternTransform: `rotate(<span class="math-inline">\{randomInt\(0, 90\)\}\) scale\(</span>{random(0.5, 1.5)})`
     });
 
-    // Add a background to the pattern cell
+    // Optional background for the pattern cell
     createSVGElement('rect', {
-        width: size, height: size, fill: randomChoice(palette), opacity: random(0.1, 0.4)
+        width: size, height: size, fill: randomChoice(palette), opacity: random(0.1, 0.3) // Lower opacity
     }, pattern);
 
 
-    const patternType = randomInt(0, 5); // More pattern types
+    const patternType = randomInt(0, 5);
     const strokeColor = randomChoice(palette) || 'grey';
     const fillColor = randomChoice(palette) || 'lightgrey';
-    const strokeWidth = random(0.5, 2);
+    const strokeWidth = random(0.5, 1.5); // Thinner pattern strokes
 
     switch (patternType) {
-        case 0: // Dots
-            createSVGElement('circle', { cx: size/2, cy: size/2, r: size * random(0.1, 0.3), fill: fillColor }, pattern);
-            break;
-        case 1: // Lines
-            createSVGElement('line', { x1: 0, y1: size/2, x2: size, y2: size/2, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
-            if (secureRandom() > 0.5) // Add perpendicular line sometimes
-                 createSVGElement('line', { x1: size/2, y1: 0, x2: size/2, y2: size, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
-            break;
-        case 2: // Diagonal lines
-            createSVGElement('line', { x1: 0, y1: 0, x2: size, y2: size, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
-            if (secureRandom() > 0.5)
-                 createSVGElement('line', { x1: size, y1: 0, x2: 0, y2: size, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
-            break;
-        case 3: // Checkboard
-            createSVGElement('rect', { x: 0, y: 0, width: size/2, height: size/2, fill: fillColor }, pattern);
-            createSVGElement('rect', { x: size/2, y: size/2, width: size/2, height: size/2, fill: fillColor }, pattern);
-            break;
-        case 4: // Triangles
-             createSVGElement('polygon', { points: `0,0 ${size},0 ${size/2},${size}`, fill: fillColor }, pattern);
-             if (secureRandom() > 0.5)
-                createSVGElement('polygon', { points: `0,${size} ${size},${size} ${size/2},0`, fill: randomChoice(palette) }, pattern);
-            break;
-        case 5: // Small circles/squares
-             const shape = secureRandom() > 0.5 ? 'circle' : 'rect';
-             const elemSize = size * 0.4;
-             if (shape === 'circle') {
-                createSVGElement('circle', { cx: size/2, cy: size/2, r: elemSize/2, fill: fillColor, stroke: strokeColor, 'stroke-width': strokeWidth * 0.5 }, pattern);
-             } else {
-                 createSVGElement('rect', { x: size/2 - elemSize/2, y: size/2 - elemSize/2, width: elemSize, height: elemSize, fill: fillColor, stroke: strokeColor, 'stroke-width': strokeWidth * 0.5 }, pattern);
-             }
-            break;
+         case 0: // Dots
+             createSVGElement('circle', { cx: size/2, cy: size/2, r: size * random(0.15, 0.3), fill: fillColor }, pattern);
+             break;
+         case 1: // Lines
+             createSVGElement('line', { x1: 0, y1: size/2, x2: size, y2: size/2, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
+             if (secureRandom() > 0.6) // Less frequent perpendicular line
+                  createSVGElement('line', { x1: size/2, y1: 0, x2: size/2, y2: size, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
+             break;
+         case 2: // Diagonal lines
+             createSVGElement('line', { x1: 0, y1: 0, x2: size, y2: size, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
+             if (secureRandom() > 0.6)
+                  createSVGElement('line', { x1: size, y1: 0, x2: 0, y2: size, stroke: strokeColor, 'stroke-width': strokeWidth }, pattern);
+             break;
+         case 3: // Checkboard
+             createSVGElement('rect', { x: 0, y: 0, width: size/2, height: size/2, fill: fillColor }, pattern);
+             createSVGElement('rect', { x: size/2, y: size/2, width: size/2, height: size/2, fill: fillColor }, pattern);
+             break;
+         case 4: // Triangles
+              createSVGElement('polygon', { points: `0,0 ${size},0 <span class="math-inline">\{size/2\},</span>{size}`, fill: fillColor }, pattern);
+              if (secureRandom() > 0.5)
+                 createSVGElement('polygon', { points: `0,${size} <span class="math-inline">\{size\},</span>{size} ${size/2},0`, fill: randomChoice(palette) }, pattern);
+             break;
+         case 5: // Small circles/squares
+              const shape = secureRandom() > 0.5 ? 'circle' : 'rect';
+              const elemSize = size * 0.4;
+              if (shape === 'circle') {
+                 createSVGElement('circle', { cx: size/2, cy: size/2, r: elemSize/2, fill: fillColor, stroke: strokeColor, 'stroke-width': strokeWidth * 0.5 }, pattern);
+              } else {
+                  createSVGElement('rect', { x: size/2 - elemSize/2, y: size/2 - elemSize/2, width: elemSize, height: elemSize, fill: fillColor, stroke: strokeColor, 'stroke-width': strokeWidth * 0.5 }, pattern);
+              }
+             break;
     }
 
-    dom.defs.appendChild(pattern);
+    dom.defs.appendChild(pattern); // Add to cached defs
     return `url(#${patternId})`;
 }
 
 
 // ====================== SVG Generation Core ======================
 
-// Central function to get options from UI
 function getOptions() {
     state.currentOptions = {
         patternType: dom.patternType.value,
@@ -465,9 +466,8 @@ function getOptions() {
         useTime: dom.useTime.checked,
         animation: dom.animation.checked,
         animationType: dom.animationType.value,
-        viewportWidth: state.viewportWidth, // Use state viewport
-        viewportHeight: state.viewportHeight, // Use state viewport
-        // Include captured coordinates if needed by patterns
+        viewportWidth: state.viewportWidth,
+        viewportHeight: state.viewportHeight,
         capturedX: state.capturedX,
         capturedY: state.capturedY,
         capturedV: state.capturedV,
@@ -475,58 +475,58 @@ function getOptions() {
     return state.currentOptions;
 }
 
-// Main SVG Generation Function
 function generateSVG() {
     console.log("Generating SVG...");
-    stopAnimation(); // Stop any existing animation first
+    stopAnimation();
 
     const options = getOptions();
-    const palette = getColorPalette(); // Get current palette
+    const palette = getColorPalette(); // Ensure palette is valid
 
-    // Clear previous SVG content and defs
-    dom.svg.innerHTML = '';
-    dom.defs = createSVGElement('defs'); // Recreate defs
-    dom.svg.appendChild(dom.defs);
+    // Ensure defs exists
+    if (!dom.defs) {
+         console.error("SVG <defs> element not found or created. Cannot generate gradients/patterns.");
+         dom.defs = createSVGElement('defs', {}, dom.svg); // Attempt to create it now
+    } else {
+         dom.defs.innerHTML = ''; // Clear existing defs
+    }
+    // Clear main SVG content (excluding defs)
+    while (dom.svg.lastChild && dom.svg.lastChild !== dom.defs) {
+         dom.svg.removeChild(dom.svg.lastChild);
+    }
 
-    // Set SVG background (as a rect)
+
+    // Set SVG background (insert *after* defs)
     if (options.bgColor && options.bgColor !== '#ffffff' && options.bgColor !== '#FFFFFF') {
-        createSVGElement('rect', {
+        const bgRect = createSVGElement('rect', {
             x: 0, y: 0, width: '100%', height: '100%', fill: options.bgColor
-        }, dom.svg);
+        });
+        // Insert background rect after defs
+        dom.svg.insertBefore(bgRect, dom.defs.nextSibling);
     }
 
     // --- Seeding Logic ---
-    // Store original Math.random
-    const originalRandom = Math.random;
-    let seed = Date.now(); // Base seed
-
-    if (options.useTime) {
-        seed += getTimeSeedValue() * 1e9; // Mix in time
-    }
-    if (options.useCursor && state.mouseX !== null && state.mouseY !== null) {
-        // Incorporate mouse position carefully to avoid predictable patterns
-        seed += Math.sin(state.mouseX * 0.01) * 1e5 + Math.cos(state.mouseY * 0.01) * 1e5;
-         // Mix in captured coords if they exist
+    const originalRandom = Math.random; // Store original Math.random
+    let seed = Date.now();
+    if (options.useTime) seed += getTimeSeedValue() * 1e9;
+    if (options.useCursor) {
+        if (state.mouseX !== null) seed += Math.sin(state.mouseX * 0.01) * 1e5;
+        if (state.mouseY !== null) seed += Math.cos(state.mouseY * 0.01) * 1e5;
         if (state.capturedX !== null) seed += Math.sin(state.capturedX) * 1e4;
         if (state.capturedY !== null) seed += Math.cos(state.capturedY) * 1e4;
-
     }
-
-    // Simple LCG PRNG based on the combined seed (can replace Math.random)
     let currentSeed = Math.floor(Math.abs(seed)) % 2147483647;
     if (currentSeed === 0) currentSeed = 1;
     const seededRandom = () => {
         currentSeed = (currentSeed * 16807) % 2147483647;
         return (currentSeed - 1) / 2147483646;
     };
-     // Temporarily replace Math.random ONLY IF seeds are used
-     if (options.useTime || options.useCursor) {
-         console.log("Using seeded random.");
-         Math.random = seededRandom;
-     } else {
-         console.log("Using default Math.random.");
-         Math.random = secureRandom; // Use the better default random
-     }
+    if (options.useTime || options.useCursor) {
+        console.log("Using seeded random.");
+        Math.random = seededRandom;
+    } else {
+        console.log("Using default secureRandom.");
+        Math.random = secureRandom;
+    }
 
     // --- Generation Loop (Layers) ---
     let totalElements = 0;
@@ -534,103 +534,75 @@ function generateSVG() {
 
     try {
         for (let layer = 0; layer < options.layerCount; layer++) {
-            state.currentLayer = layer; // Set current layer context
-            let layerGroup = createSVGElement('g', { id: `layer-${layer}` }, dom.svg);
-             // Optional: Apply slight variations per layer
+            state.currentLayer = layer;
+            let layerGroup = createSVGElement('g', { id: `layer-${layer}` }, dom.svg); // Append layers to SVG
              const layerOptions = { ...options };
-             if (layer > 0) {
-                 layerOptions.complexity = Math.max(1, options.complexity - layer);
-                 layerOptions.density = Math.max(1, options.density - layer * 10);
-                 layerOptions.strokeWeight = Math.max(0.1, options.strokeWeight * (1 - layer * 0.2));
-                 layerOptions.opacity = Math.max(0.1, options.opacity * (1 - layer * 0.15));
-                 layerOptions.scale = options.scale * (1 - layer * 0.1);
+             if (layer > 0) { // Apply variations for subsequent layers
+                 layerOptions.complexity = Math.max(1, options.complexity - layer * 1.5); // More variation
+                 layerOptions.density = Math.max(1, options.density - layer * 15);
+                 layerOptions.strokeWeight = Math.max(0.1, options.strokeWeight * (1 - layer * 0.25));
+                 layerOptions.opacity = Math.max(0.1, options.opacity * (1 - layer * 0.2));
+                 layerOptions.scale = options.scale * (1 - layer * 0.15);
              }
 
-
-            // Reset recursion count for patterns that use it
             state.recursionCount = 0;
             let result = {};
 
-            // Generate pattern based on selected type
             switch (options.patternType) {
-                case 'random':
-                    result = generateRandomPattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'recursive':
-                    result = generateRecursivePattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'grid':
-                    result = generateGridPattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'quadtree':
-                    result = generateQuadtreePattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'fibonacci':
-                    result = generateFibonacciPattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'mandelbrot':
-                    result = generateMandelbrotPattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'prime':
-                    result = generatePrimePattern(layerGroup, layerOptions, palette);
-                    break;
-                 case 'trig':
-                    result = generateTrigPattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'bezier':
-                    result = generateBezierPattern(layerGroup, layerOptions, palette);
-                    break;
-                case 'lissajous':
-                    result = generateLissajousPattern(layerGroup, layerOptions, palette);
-                    break;
-                // Add cases for new patterns here
-                default:
-                    console.warn("Unknown pattern type:", options.patternType);
-                    result = generateRandomPattern(layerGroup, layerOptions, palette);
+                 case 'random': result = generateRandomPattern(layerGroup, layerOptions, palette); break;
+                 case 'recursive': result = generateRecursivePattern(layerGroup, layerOptions, palette); break;
+                 case 'grid': result = generateGridPattern(layerGroup, layerOptions, palette); break;
+                 case 'quadtree': result = generateQuadtreePattern(layerGroup, layerOptions, palette); break;
+                 case 'fibonacci': result = generateFibonacciPattern(layerGroup, layerOptions, palette); break;
+                 case 'mandelbrot': result = generateMandelbrotPattern(layerGroup, layerOptions, palette); break;
+                 case 'prime': result = generatePrimePattern(layerGroup, layerOptions, palette); break;
+                 case 'trig': result = generateTrigPattern(layerGroup, layerOptions, palette); break;
+                 case 'bezier': result = generateBezierPattern(layerGroup, layerOptions, palette); break;
+                 case 'lissajous': result = generateLissajousPattern(layerGroup, layerOptions, palette); break;
+                 default:
+                     console.warn("Unknown pattern type:", options.patternType);
+                     result = generateRandomPattern(layerGroup, layerOptions, palette);
             }
-
-            // Combine results from layers
             totalElements += result.elementCount || 0;
-            combinedMathInfo[`Layer_${layer}`] = result; // Store layer-specific info
+            combinedMathInfo[`Layer_${layer}`] = result;
         }
 
-        // Update overall math information
         state.mathInfo = {
-            generator: options.patternType,
-            layers: options.layerCount,
-            viewport: `${options.viewportWidth}x${options.viewportHeight}`,
-            totalElements: totalElements,
-            details: combinedMathInfo // Include layer details
+            generator: options.patternType, layers: options.layerCount,
+            viewport: `<span class="math-inline">\{options\.viewportWidth\}x</span>{options.viewportHeight}`,
+            totalElements: totalElements, details: combinedMathInfo
         };
         updateMathInfo(state.mathInfo);
-
-        // Update SVG stats
         updateSVGStats(totalElements);
 
-        // Store SVG data for export
         state.svgData = dom.svg.outerHTML;
         state.generationCount++;
 
-        // Start animation if enabled
         if (options.animation) {
             startAnimation();
         }
 
     } catch (error) {
         console.error('Error during SVG generation:', error);
-        dom.svg.innerHTML = `<text x="10" y="50" fill="red">Error: ${error.message}. Check console.</text>`;
+        // Display error in the SVG area itself for visibility
+        const errorText = createSVGElement('text', { x: 10, y: 50, fill: 'red', 'font-family': 'sans-serif', 'font-size': '16px' });
+        errorText.textContent = `Error: ${error.message}. Check console.`;
+        dom.svg.appendChild(errorText);
+
         updateMathInfo({ error: error.message });
         updateSVGStats(0);
     } finally {
-        // Restore original Math.random IMPORTANT!
-         Math.random = originalRandom;
-         console.log("Restored Math.random.");
+        Math.random = originalRandom; // Restore original Math.random
+        console.log("Restored Math.random.");
     }
 }
 
 
 // ====================== Pattern Generation Functions ======================
 // (Includes existing patterns + new ones: Trig, Bezier, Lissajous)
+// Definitions are the same as provided in the previous correct version
+// ... (generateRandomPattern, generateRecursivePattern, etc. - functions assumed to be here) ...
+// Ensure all pattern functions are defined before generateSVG is called
 
 function generateRandomPattern(parent, options, palette) {
     const { viewportWidth: width, viewportHeight: height, complexity, density, repetition } = options;
@@ -669,7 +641,7 @@ function generateRandomPattern(parent, options, palette) {
             for (let j = 0; j < numPoints; j++) {
                 const angle = (j / numPoints) * Math.PI * 2 + random(-0.1, 0.1); // Slight angle jitter
                 const r = radius * random(0.8, 1.2); // Radius jitter
-                points.push(`${centerX + Math.cos(angle) * r},${centerY + Math.sin(angle) * r}`);
+                points.push(`<span class="math-inline">\{centerX \+ Math\.cos\(angle\) \* r\},</span>{centerY + Math.sin(angle) * r}`);
             }
             shape = createSVGElement('polygon', {
                 points: points.join(' '),
@@ -814,7 +786,7 @@ function generateGridPattern(parent, options, palette) {
                     const vertices = randomInt(3, 7);
                     for (let i = 0; i < vertices; i++) {
                         const a = (i / vertices) * Math.PI * 2;
-                        points.push(`${cx + Math.cos(a) * elementScale},${cy + Math.sin(a) * elementScale}`);
+                        points.push(`<span class="math-inline">\{cx \+ Math\.cos\(a\) \* elementScale\},</span>{cy + Math.sin(a) * elementScale}`);
                     }
                     createSVGElement('polygon', { points: points.join(' '), fill, stroke, 'stroke-width': sw, opacity: op }, parent);
                      break;
@@ -849,7 +821,7 @@ function generateGridPattern(parent, options, palette) {
     }
 
 
-     return { elementCount, gridSize: `${cellsPerSide}x${cellsPerSide}`, cellCount: cellsPerSide * cellsPerSide };
+     return { elementCount, gridSize: `<span class="math-inline">\{cellsPerSide\}x</span>{cellsPerSide}`, cellCount: cellsPerSide * cellsPerSide };
 }
 
 function generateQuadtreePattern(parent, options, palette) {
@@ -928,7 +900,7 @@ function generateQuadtreeNode(parent, quad, maxDepth, options, palette) {
                  const sides = randomInt(3, 6);
                   for (let i = 0; i < sides; i++) {
                      const angle = (i / sides) * Math.PI * 2;
-                     points.push(`${cx + Math.cos(angle) * r},${cy + Math.sin(angle) * r}`);
+                     points.push(`<span class="math-inline">\{cx \+ Math\.cos\(angle\) \* r\},</span>{cy + Math.sin(angle) * r}`);
                  }
                  createSVGElement('polygon', { points: points.join(' '), fill, stroke, 'stroke-width': sw, opacity: op}, parent);
                  break;
@@ -991,7 +963,7 @@ function generateFibonacciPattern(parent, options, palette) {
                  const points = [];
                  for (let j = 0; j < 3; j++) {
                      const angle = theta + j * (2 * Math.PI / 3);
-                     points.push(`${x + size * Math.cos(angle)},${y + size * Math.sin(angle)}`);
+                     points.push(`<span class="math-inline">\{x \+ size \* Math\.cos\(angle\)\},</span>{y + size * Math.sin(angle)}`);
                  }
                  createSVGElement('polygon', { points: points.join(' '), fill, stroke, 'stroke-width': sw, opacity: op }, group);
                 break;
@@ -1017,7 +989,7 @@ function generateFibonacciPattern(parent, options, palette) {
         for (let i = 0; i < numElements; i += Math.max(1, Math.floor(numElements / (50 * repetition)))) { // Adjust step based on repetition
             const theta = i * goldenAngle;
             const distance = radius * Math.sqrt(i / numElements);
-            pathPoints.push(`${distance * Math.cos(theta)},${distance * Math.sin(theta)}`);
+            pathPoints.push(`<span class="math-inline">\{distance \* Math\.cos\(theta\)\},</span>{distance * Math.sin(theta)}`);
         }
         if (pathPoints.length > 1) {
              createSVGElement('path', {
@@ -1085,7 +1057,7 @@ function generateMandelbrotPattern(parent, options, palette) {
                       case 1: createSVGElement('rect', {x:px-size/2, y:py-size/2, width:size, height:size, fill:fillColor, stroke:options.strokeColor, 'stroke-width':sw, opacity:op}, parent); break;
                       case 2: createSVGElement('ellipse', {cx:px, cy:py, rx:size/2, ry:size/4, fill:fillColor, stroke:options.strokeColor, 'stroke-width':sw, opacity:op, transform:`rotate(${iter*5} ${px} ${py})`}, parent); break; // Rotating ellipse
                       case 3:
-                        const pts = `${px},${py-size/2} ${px+size/2},${py} ${px},${py+size/2} ${px-size/2},${py}`;
+                        const pts = `<span class="math-inline">\{px\},</span>{py-size/2} <span class="math-inline">\{px\+size/2\},</span>{py} <span class="math-inline">\{px\},</span>{py+size/2} <span class="math-inline">\{px\-size/2\},</span>{py}`;
                         createSVGElement('polygon', {points:pts, fill:fillColor, stroke:options.strokeColor, 'stroke-width':sw, opacity:op}, parent); break; // Diamond
                   }
                  elementCount++;
@@ -1183,10 +1155,10 @@ function drawPrimeElement(parent, x, y, size, primeValue, options, palette) {
         case 0: createSVGElement('circle', { cx:x, cy:y, r:size/2, fill, stroke, 'stroke-width': sw, opacity: op }, parent); break;
         case 1: createSVGElement('rect', { x:x-size/2, y:y-size/2, width:size, height:size, fill, stroke, 'stroke-width': sw, opacity: op }, parent); break;
         case 2: // Triangle
-            const p = [`${x},${y-size/2}`, `${x+size/2*0.866},${y+size/4}`, `${x-size/2*0.866},${y+size/4}`].join(' ');
+            const p = [`<span class="math-inline">\{x\},</span>{y-size/2}`, `<span class="math-inline">\{x\+size/2\*0\.866\},</span>{y+size/4}`, `<span class="math-inline">\{x\-size/2\*0\.866\},</span>{y+size/4}`].join(' ');
             createSVGElement('polygon', { points:p, fill, stroke, 'stroke-width': sw, opacity: op }, parent); break;
         case 3: // Star (simple 4-point)
-            const p2 = [`${x},${y-size/2}`, `${x+size/4},${y}`, `${x},${y+size/2}`, `${x-size/4},${y}`].join(' ');
+            const p2 = [`<span class="math-inline">\{x\},</span>{y-size/2}`, `<span class="math-inline">\{x\+size/4\},</span>{y}`, `<span class="math-inline">\{x\},</span>{y+size/2}`, `<span class="math-inline">\{x\-size/4\},</span>{y}`].join(' ');
             createSVGElement('polygon', { points:p2, fill, stroke, 'stroke-width': sw, opacity: op }, parent); break;
         case 4: // Ring / Donut
             createSVGElement('circle', { cx:x, cy:y, r:size/2, fill:'none', stroke:fill, 'stroke-width': sw * 1.5, opacity: op }, parent);
@@ -1235,7 +1207,7 @@ function generateTrigPattern(parent, options, palette) {
 
              // Ensure y stays within bounds
             y = Math.max(0, Math.min(height, y));
-            pathPoints.push(`${x},${y}`);
+            pathPoints.push(`<span class="math-inline">\{x\},</span>{y}`);
         }
 
          if (pathPoints.length > 1) {
@@ -1314,7 +1286,7 @@ function generateLissajousPattern(parent, options, palette) {
             const t = (j / steps) * Math.PI * 2 * repetition; // Time parameter, affected by repetition
             const x = centerX + radiusX * Math.sin(a * t + delta);
             const y = centerY + radiusY * Math.sin(b * t);
-            pathPoints.push(`${x},${y}`);
+            pathPoints.push(`<span class="math-inline">\{x\},</span>{y}`);
         }
 
          if (pathPoints.length > 1) {
@@ -1378,7 +1350,7 @@ function startAnimation() {
                          try { bbox = element.getBBox(); } catch(e) { bbox = {x:0, y:0, width:0, height:0}; }
                          const cx = bbox.x + bbox.width / 2;
                          const cy = bbox.y + bbox.height / 2;
-                         element.setAttribute('transform', `${currentTransform} rotate(${phase * 360 * (index % 3 + 1)}, ${cx}, ${cy})`); // Different speeds
+                         element.setAttribute('transform', `<span class="math-inline">\{currentTransform\} rotate\(</span>{phase * 360 * (index % 3 + 1)}, ${cx}, ${cy})`); // Different speeds
                         break;
 
                     case 'opacity':
@@ -1436,7 +1408,7 @@ function updateUIFromState() {
      dom.customWidth.value = state.viewportWidth;
      dom.customHeight.value = state.viewportHeight;
      // Try to match state to preset dropdown
-      const currentViewport = `${state.viewportWidth}x${state.viewportHeight}`;
+      const currentViewport = `<span class="math-inline">\{state\.viewportWidth\}x</span>{state.viewportHeight}`;
       let matchedPreset = 'custom';
       for (const option of dom.viewportPreset.options) {
           if (option.value !== 'custom' && option.textContent.includes(currentViewport)) {
@@ -1472,7 +1444,7 @@ function updateMathInfo(info) {
                   .filter(([key]) => key !== 'elementCount') // Exclude elementCount as it's summarized
                   .map(([key, value]) => `${key}: ${typeof value === 'number' ? value.toFixed(2) : value}`)
                   .join(', ');
-              html += `${details} (${layerInfo.elementCount || 0} elements)</div>`;
+              html += `<span class="math-inline">\{details\} \(</span>{layerInfo.elementCount || 0} elements)</div>`;
          }
     }
 
@@ -1543,7 +1515,7 @@ function handleViewportChange() {
     dom.svg.setAttribute('height', height);
     dom.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
-    console.log(`Viewport set to: ${width}x${height}`);
+    console.log(`Viewport set to: <span class="math-inline">\{width\}x</span>{height}`);
     // Optionally regenerate SVG automatically on viewport change
     // generateSVG();
 }
@@ -1618,11 +1590,30 @@ function downloadJSON() {
 function initApp() {
     console.log("Initializing jenVek SVG Generator v2...");
     cacheDOMElements();
-    loadColors().then(() => {
-        // Set initial viewport and generate first SVG *after* colors are loaded
-         handleViewportChange(); // Set initial size from default UI values
-        generateSVG(); // Generate initial SVG on load
-    });
+
+    // --- MODIFIED PART: Use global variable instead of fetch ---
+    // Assign colors directly from the variable loaded by colours.js
+    state.allColors = typeof organizedColorsData !== 'undefined' ? organizedColorsData : {
+         // Define a minimal fallback palette here just in case colours.js fails to load/define the variable
+         fallback_blues: [
+             { name: "Default Blue 1", hex: "#264651" },
+             { name: "Default Blue 2", hex: "#0E5360" },
+             { name: "Default Blue 3", hex: "#0297A1" },
+             { name: "Default Blue 4", hex: "#93bedb" },
+         ]
+    };
+    // Log an error if the expected global variable isn't found
+    if (typeof organizedColorsData === 'undefined') {
+         console.error("Color data ('organizedColorsData') from colours.js was not found! Check script tag in HTML or the content of colours.js.");
+    }
+
+    // Now that state.allColors is set, proceed with dependent initializations
+    populateColorSelectors(); // Populate dropdowns using data now in state
+
+    handleViewportChange(); // Set initial size from default UI values
+    generateSVG(); // Generate initial SVG on load
+    // --- END OF MODIFIED PART ---
+
 
     // --- Attach Event Listeners ---
     dom.generateBtn.addEventListener('click', generateSVG);
@@ -1668,6 +1659,7 @@ function initApp() {
 
     console.log("App Initialized.");
 }
+
 
 // ====================== Initialization ======================
 // Wait for the DOM to be fully loaded before initializing
