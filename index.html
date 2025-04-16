@@ -3,111 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>jenVek | SVG Generator</title>
+    <title>jenVek | SVG Generator v2</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <div class="logo">jenVek |</div>
+        <div class="logo">jenVek | v2</div>
         <div class="header-controls">
+            <button id="toggle-left" title="Toggle Generator Controls">☰</button>
             <button id="generate-btn">Generate</button>
-            <button id="download-btn">Download SVG</button>
-            <button id="download-json-btn">Download JSON</button>
+            <button id="stop-animation-btn" title="Stop Animation">⛔</button>
+            <button id="download-btn" title="Download SVG">⬇️ SVG</button>
+            <button id="download-json-btn" title="Download Generation Data">⬇️ JSON</button>
+            <button id="toggle-right" title="Toggle Color & Math Controls">⚙️</button>
         </div>
     </header>
-    
+
     <main>
-        <!-- Left Sidebar -->
-        <aside class="sidebar left-sidebar">
-            <div class="sidebar-header">
-                <h3>Generator Controls</h3>
-                <button class="toggle-btn" id="toggle-left">◀</button>
-            </div>
+        <aside class="sidebar left-sidebar collapsed">
             <div class="sidebar-content">
+                <h3>Generator Controls</h3>
                 <div class="control-group">
-                    <label>Complexity Level</label>
+                    <label>Pattern Type</label>
+                    <select id="pattern-type">
+                        <option value="random">Random Shapes</option>
+                        <option value="recursive">Recursive Shapes</option>
+                        <option value="grid">Grid Pattern</option>
+                        <option value="quadtree">Quadtree</option>
+                        <option value="fibonacci">Fibonacci Spiral</option>
+                        <option value="mandelbrot">Mandelbrot-ish</option>
+                        <option value="prime">Prime Pattern</option>
+                        <option value="trig">Trig Waves (Sine/Cosine)</option>
+                        <option value="bezier">Bezier Curves</option>
+                        <option value="lissajous">Lissajous Curves</option>
+                        </select>
+                </div>
+                 <div class="control-group">
+                    <label>Layer Count (1-3)</label>
+                    <input type="range" id="layer-count" min="1" max="3" value="1">
+                    <span class="value-display">1</span>
+                </div>
+                <div class="control-group">
+                    <label>Complexity</label>
                     <input type="range" id="complexity" min="1" max="10" value="5">
                     <span class="value-display">5</span>
                 </div>
                 <div class="control-group">
-                    <label>Pattern Type</label>
-                    <select id="pattern-type">
-                        <option value="random">Random</option>
-                        <option value="recursive">Recursive</option>
-                        <option value="grid">Grid</option>
-                        <option value="quadtree">Quadtree</option>
-                        <option value="fibonacci">Fibonacci</option>
-                        <option value="mandelbrot">Mandelbrot</option>
-                        <option value="prime">Prime Number</option>
-                    </select>
-                </div>
-                <div class="control-group">
                     <label>Density</label>
-                    <input type="range" id="density" min="1" max="100" value="50">
-                    <span class="value-display">50</span>
+                    <input type="range" id="density" min="1" max="100" value="70">
+                    <span class="value-display">70</span>
+                </div>
+                 <div class="control-group">
+                    <label>Repetition / Tiling</label>
+                    <input type="range" id="repetition" min="1" max="10" value="1">
+                    <span class="value-display">1</span>
                 </div>
                 <div class="control-group">
-                    <label>Max Recursion</label>
+                    <label>Max Recursion (Depth)</label>
                     <input type="range" id="max-recursion" min="1" max="8" value="4">
                     <span class="value-display">4</span>
                 </div>
                 <div class="control-group">
                     <label>Stroke Weight</label>
-                    <input type="range" id="stroke-weight" min="0" max="5" step="0.5" value="1">
+                    <input type="range" id="stroke-weight" min="0" max="10" step="0.25" value="1">
                     <span class="value-display">1</span>
                 </div>
-                <div class="control-group">
-                    <label>Scale</label>
-                    <input type="range" id="scale" min="0.1" max="2" step="0.1" value="1">
+                 <div class="control-group">
+                    <label>Base Scale</label>
+                    <input type="range" id="scale" min="0.1" max="3" step="0.1" value="1">
                     <span class="value-display">1</span>
                 </div>
-                <div class="control-group">
-                    <label>Use Cursor Data</label>
-                    <input type="checkbox" id="use-cursor" checked>
+                 <div class="control-group">
+                    <label>Viewport Preset</label>
+                     <select id="viewport-preset">
+                        <option value="custom">Custom</option>
+                        <option value="mobile">Mobile (375x667)</option>
+                        <option value="tablet">Tablet (768x1024)</option>
+                        <option value="desktop">Desktop (1440x900)</option>
+                        <option value="hd">HD (1920x1080)</option>
+                        <option value="square_1k">1000x1000</option>
+                        <option value="square_3k">3000x3000</option>
+                    </select>
                 </div>
-                <div class="control-group">
-                    <label>Use Time Data</label>
-                    <input type="checkbox" id="use-time" checked>
+                 <div class="control-group">
+                    <label>Custom Width</label>
+                    <input type="number" id="custom-width" value="800" min="100">
+                 </div>
+                  <div class="control-group">
+                    <label>Custom Height</label>
+                    <input type="number" id="custom-height" value="600" min="100">
+                 </div>
+                 <div class="control-group checkbox-group">
+                    <label><input type="checkbox" id="use-cursor"> Use Cursor Seed</label>
+                    <label><input type="checkbox" id="use-time"> Use Time Seed</label>
                 </div>
-                <div class="control-group">
-                    <label>Animation</label>
-                    <input type="checkbox" id="animation">
-                </div>
+
             </div>
         </aside>
 
-        <!-- Canvas Area -->
         <div class="canvas-container">
-            <svg id="svg-canvas" width="800" height="600"></svg>
+            <svg id="svg-canvas" width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+                <defs></defs> </svg>
             <div id="cursor-info">X: 0, Y: 0</div>
+            <div class="capture-controls">
+                <button id="capture-x" title="Capture current X coordinate">X</button>
+                <button id="capture-y" title="Capture current Y coordinate">Y</button>
+                <button id="capture-v" title="Capture current X,Y as a vector">V</button>
+                 <span id="captured-coords"></span>
+            </div>
         </div>
 
-        <!-- Right Sidebar -->
-        <aside class="sidebar right-sidebar">
-            <div class="sidebar-header">
-                <button class="toggle-btn" id="toggle-right">▶</button>
-                <h3>Color Controls</h3>
-            </div>
-            <div class="sidebar-content">
-                <div class="control-group">
-                    <label>Color Palette</label>
+        <aside class="sidebar right-sidebar collapsed">
+             <div class="sidebar-content">
+                <h3>Color &amp; Style</h3>
+                 <div class="control-group">
+                    <label>Color Palette Category</label>
+                    <select id="color-category">
+                        </select>
+                </div>
+                 <div class="control-group">
+                    <label>Specific Palette</label>
                     <select id="color-palette">
-                        <option value="blues">Blues</option>
-                        <option value="random">Random</option>
-                    </select>
-                </div>
-                <div class="color-palette-preview" id="palette-preview">
-                    <div class="color-box" style="background-color: #264651"></div>
-                    <div class="color-box" style="background-color: #0E5360"></div>
-                    <div class="color-box" style="background-color: #0297A1"></div>
-                    <div class="color-box" style="background-color: #93bedb"></div>
-                    <div class="color-box" style="background-color: #304842"></div>
-                    <div class="color-box" style="background-color: #82B5B8"></div>
-                    <div class="color-box" style="background-color: #306CB8"></div>
-                </div>
+                         </select>
+                 </div>
+                 <div class="color-palette-preview" id="palette-preview">
+                    </div>
                 <div class="control-group">
                     <label>Background Color</label>
-                    <input type="color" id="bg-color" value="#ffffff">
+                    <input type="color" id="bg-color" value="#FFFFFF">
                 </div>
                 <div class="control-group">
                     <label>Stroke Color</label>
@@ -124,29 +147,38 @@
                 </div>
                 <div class="control-group">
                     <label>Opacity</label>
-                    <input type="range" id="opacity" min="0" max="1" step="0.1" value="0.8">
-                    <span class="value-display">0.8</span>
+                    <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.9">
+                    <span class="value-display">0.9</span>
                 </div>
+                 <div class="control-group checkbox-group">
+                    <label><input type="checkbox" id="animation" checked> Animate</label>
+                 </div>
+                 <div class="control-group">
+                     <label>Animation Type</label>
+                     <select id="animation-type">
+                        <option value="pulse">Pulse Size</option>
+                        <option value="rotate">Rotate</option>
+                        <option value="opacity">Fade In/Out</option>
+                        <option value="morph">Morph (Simple)</option>
+                    </select>
+                 </div>
+
+                 <hr>
+                 <h3>Math Properties</h3>
+                 <div id="math-output">Generate an SVG...</div>
+                 <div id="svg-stats">Size: 0 KB | Elements: 0</div>
             </div>
         </aside>
     </main>
 
     <footer>
         <div class="footer-content">
-            <button id="toggle-footer">▲</button>
             <div class="footer-info">
-                <div class="math-info">
-                    <h4>Mathematical Properties</h4>
-                    <div id="math-output">Generate an SVG to see properties...</div>
-                </div>
-                <div class="svg-info">
-                    <h4>SVG Information</h4>
-                    <div id="svg-stats">Size: 0 KB | Elements: 0</div>
-                </div>
+                 © 2025 jenVek | RDXENV | SVG Generator v2
             </div>
         </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
 </body>
 </html>
